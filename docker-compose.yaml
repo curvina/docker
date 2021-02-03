@@ -1,0 +1,54 @@
+# Docker engine 19.03.0+
+version: '3.8'
+
+services:
+  mariadb:
+      image: mariadb:10.5-focal
+      container_name: mariadb
+      restart: always
+      volumes:
+          - ./db-data:/var/lib/mysql:rw
+      ports:
+        - 3306:3306
+      environment:
+          - MYSQL_RANDOM_ROOT_PASSWORD=yes
+          - MYSQL_DATABASE=${MYSQL_DATABASE:-db_name}
+          - MYSQL_USER=${MYSQL_USER:-db_user}
+          - MYSQL_PASSWORD=${MYSQL_PASSWORD:-db_password}
+
+  php_fpm:
+    build:
+      context: .
+      target: php_fpm
+    image: ${PHP_IMAGE:?PHP_IMAGE is not set or empty}
+    container_name: php_fpm
+    restart: unless-stopped
+    volumes:
+      - php_socket:/var/run/php
+      - ./laravel-storage:/app/storage
+    healthcheck:
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+    depends_on:
+      - mariadb
+
+  nginx:
+    build:
+      context: .
+      target: nginx
+    image: ${NGINX_IMAGE:?NGINX_IMAGE is not set or empty}
+    container_name: nginx
+    restart: unless-stopped
+    volumes:
+      - php_socket:/var/run/php
+    ports:
+      - '8000:80'
+    depends_on:
+      - php_fpm
+
+volumes:
+  php_socket:
